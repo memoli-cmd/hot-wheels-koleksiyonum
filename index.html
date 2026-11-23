@@ -26,7 +26,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 .btn.ghost{background:var(--line);color:var(--ink)}
 .err{color:var(--bad);font-size:.85rem;min-height:1.1em}
 header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.row{display:flex;gap:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:16px 0}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
 .stat b{display:block;font-size:1.6rem}
@@ -46,6 +46,11 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;fl
 .chk{display:flex;gap:8px;align-items:center;font-weight:400;color:var(--ink);font-size:.9rem}
 .chk input{width:auto}
 #prev{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;display:none}
+.pick{display:flex;gap:8px}
+.pick label{flex:1;text-align:center;background:var(--line);color:var(--ink);border-radius:10px;padding:12px 8px;cursor:pointer;font-weight:600}
+.pick input{display:none}
+#ai{font-size:.85rem;color:var(--mut);min-height:1.2em}
+a{color:var(--acc)}
 small{font-size:.75rem}
 </style>
 </head>
@@ -127,17 +132,17 @@ async function submit(){
 const card=x=>`<article class="car"><img src="${x.img}" alt="${esc(x.name)}"><div class="b">
   <strong>${esc(x.name)}</strong>${x.series?`<span class="mut" style="font-size:.85rem">${esc(x.series)}</span>`:''}
   <div class="chips"><span class="chip">Kart: ${COND[x.cond][0]}</span>${x.rarity!=='normal'?`<span class="chip">${RAR[x.rarity][0]}</span>`:''}</div>
-  <div class="price">${money(x.est)}</div><button class="del" data-id="${x.id}">Sil</button></div></article>`;
+  <div class="price">${money(x.est)}</div>${x.note?`<span class="mut" style="font-size:.75rem">${esc(x.note)}</span>`:''}<button class="del" data-id="${x.id}">Sil</button></div></article>`;
 
 function colView(){
   const a=load(),tot=a.reduce((s,x)=>s+x.est,0);
   $('#app').innerHTML=`<main><header><div><h1>Koleksiyonum</h1><span class="mut">@${esc(user)}</span></div>
-  <div class="row"><button class="btn" id="add">+ Araba ekle</button><button class="btn ghost" id="out">Çıkış</button></div></header>
+  <div class="row"><button class="btn" id="add">+ Araba ekle</button><button class="btn ghost" id="key">✨ AI</button><button class="btn ghost" id="out">Çıkış</button></div></header>
   <div class="stats"><div class="stat"><span class="mut">Araba</span><b>${a.length}</b></div>
   <div class="stat"><span class="mut">Tahmini toplam değer</span><b>${money(tot)}</b></div></div>
   ${a.length?`<div class="grid">${a.map(card).join('')}</div>`:`<p class="mut" style="text-align:center;padding:40px 0">Henüz araba yok. İlk Hot Wheels’ını ekle!</p>`}
   <p class="mut" style="margin-top:28px"><small>Değerler yaklaşık tahmindir; gerçek fiyatlar piyasaya göre değişir. Hesabın ve koleksiyonun bu tarayıcıda saklanır.</small></p></main>`;
-  $('#add').onclick=openAdd;
+  $('#add').onclick=openAdd;$('#key').onclick=()=>keyModal();
   $('#out').onclick=()=>{S.del('hw_user');user=null;render()};
   document.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
     if(b.dataset.s){save(load().filter(x=>String(x.id)!==b.dataset.id));colView()}
@@ -157,12 +162,58 @@ function shrink(file){
   });
 }
 
+const MODEL0='gemini-2.5-flash';
+function keyModal(cb){
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="sheet"><h2 style="margin:0">AI anahtarı</h2>
+  <p class="mut" style="margin:0;font-size:.9rem">Fotoğraf yorumu için Google’ın ücretsiz Gemini anahtarı gerekir: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Anahtar sadece bu tarayıcıda saklanır. Ücretsiz katmanda gönderilen fotoğraflar Google tarafından ürün geliştirmede kullanılabilir.</p>
+  <label>Anahtar<input id="k" placeholder="AIza…" value="${esc(S.get('hw_key')||'')}"></label>
+  <label>Model adı<input id="mo" value="${esc(S.get('hw_model')||MODEL0)}"></label>
+  <div class="row"><button class="btn ghost" id="x" style="flex:1">İptal</button><button class="btn" id="ok" style="flex:2">Kaydet</button></div></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#x').onclick=()=>m.remove();
+  m.querySelector('#ok').onclick=()=>{
+    const k=m.querySelector('#k').value.trim(),mo=m.querySelector('#mo').value.trim()||MODEL0;
+    k?S.set('hw_key',k):S.del('hw_key');S.set('hw_model',mo);m.remove();if(cb&&k)cb();
+  };
+}
+async function analyze(m,upd){
+  const q=s=>m.querySelector(s),ai=q('#ai'),key=S.get('hw_key'),model=S.get('hw_model')||MODEL0;
+  if(!key){
+    ai.innerHTML='AI yorumu için <a href="#" id="setk">ücretsiz anahtar ekle</a>';
+    q('#setk').onclick=e=>{e.preventDefault();keyModal(()=>analyze(m,upd))};
+    return;
+  }
+  ai.textContent='✨ Fotoğraf yorumlanıyor…';
+  const prompt=`Bu bir Hot Wheels (1/64) koleksiyon arabası fotoğrafı. Sadece JSON döndür: {"name":"model adı","series":"seri ve yıl, bilmiyorsan boş","base_try":kusursuz kartlı yaklaşık Türkiye piyasa değeri ₺ (sayı),"cond":"mint|nm|ok|worn|loose","defects":["dent|crease|fade|tag|edge"],"rarity":"normal|prem|th|sth","note":"tek cümle Türkçe gerekçe"}. cond için karton/blister yıpranmasına bak: mint=kusursuz, nm=hafif köşe izi, ok=kıvrık/ezik, worn=yırtık/solmuş, loose=kartonsuz. defects: dent=ezik/çatlak blister, crease=kırışıklık/katlanma, fade=solma/sararma, tag=etiket izi, edge=yumuşamış köşe. Emin değilsen en makul tahmini ver.`;
+  try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:'image/jpeg',data:pendingImg.split(',')[1]}}]}],generationConfig:{responseMimeType:'application/json'}})
+    });
+    if(!r.ok)throw new Error(r.status);
+    const j=await r.json(),t=j.candidates[0].content.parts.map(p=>p.text||'').join('').replace(/```json|```/g,'').trim(),d=JSON.parse(t);
+    if(d.name)q('#n').value=d.name;
+    if(d.series)q('#s').value=d.series;
+    if(+d.base_try>0)q('#b').value=Math.round(+d.base_try);
+    if(COND[d.cond])q('#c').value=d.cond;
+    if(RAR[d.rarity])q('#r').value=d.rarity;
+    const df=Array.isArray(d.defects)?d.defects:[];
+    m.querySelectorAll('.chk input').forEach(i=>{i.checked=df.includes(i.value)});
+    m.dataset.note=d.note||'';
+    ai.textContent='✨ '+(d.note||'Yorumlandı.')+' Değerleri kontrol edip düzenleyebilirsin.';
+    upd();
+  }catch(e){
+    const c=e.message;
+    ai.textContent=c==='429'?'Ücretsiz kota doldu, biraz sonra tekrar dene.':c==='404'?'Model bulunamadı. ✨ AI ayarından model adını değiştir.':(c==='400'||c==='403')?'Anahtar geçersiz görünüyor. ✨ AI ayarından kontrol et.':'Yorumlanamadı, bilgileri elle girebilirsin.';
+  }
+}
 function openAdd(){
   pendingImg=null;
   const m=document.createElement('div');m.className='modal';
   const q=s=>m.querySelector(s);
   m.innerHTML=`<div class="sheet"><h2 style="margin:0">Yeni araba</h2>
-  <label>Fotoğraf<input type="file" id="f" accept="image/*"></label><img id="prev" alt="">
+  <div class="pick"><label>📷 Fotoğraf çek<input type="file" id="f" accept="image/*" capture="environment"></label><label>🖼 Galeriden seç<input type="file" id="g" accept="image/*"></label></div><img id="prev" alt=""><div id="ai"></div>
   <label>Model adı<input id="n" placeholder="örn. ’71 Datsun 510"></label>
   <label>Seri / yıl (isteğe bağlı)<input id="s" placeholder="örn. 2023 Nissan Skyline"></label>
   <label>Kusursuz kartlı yaklaşık piyasa fiyatı (₺)<input id="b" type="number" min="0" inputmode="decimal"></label>
@@ -181,11 +232,13 @@ function openAdd(){
   };
   const upd=()=>{q('#e').textContent=money(calc())};
   m.addEventListener('input',upd);m.addEventListener('change',upd);
-  q('#f').onchange=async e=>{
+  const pick=async e=>{
     const f=e.target.files[0];if(!f)return;
     try{pendingImg=await shrink(f);const p=q('#prev');p.src=pendingImg;p.style.display='block'}
-    catch(_){q('#err').textContent='Görsel okunamadı.'}
+    catch(_){q('#err').textContent='Görsel okunamadı.';return}
+    analyze(m,upd);
   };
+  q('#f').onchange=pick;q('#g').onchange=pick;
   q('#x').onclick=()=>m.remove();
   q('#ok').onclick=()=>{
     const n=q('#n').value.trim(),b=+q('#b').value,er=q('#err');
@@ -193,7 +246,7 @@ function openAdd(){
     if(!n)return er.textContent='Model adını yaz.';
     if(!(b>0))return er.textContent='Baz fiyatı gir.';
     const a=load();
-    a.unshift({id:Date.now(),name:n,series:q('#s').value.trim(),img:pendingImg,base:b,cond:q('#c').value,rarity:q('#r').value,est:calc()});
+    a.unshift({id:Date.now(),name:n,series:q('#s').value.trim(),img:pendingImg,base:b,cond:q('#c').value,rarity:q('#r').value,est:calc(),note:m.dataset.note||''});
     if(!save(a))return er.textContent='Depolama alanı doldu. Bazı arabaları silip tekrar dene.';
     m.remove();colView();
   };
