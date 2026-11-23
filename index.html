@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hot Wheels Koleksiyonum</title>
+<style>
+:root{--bg:#f6f3ee;--card:#fff;--ink:#1b1b1f;--mut:#6b6b76;--line:#e3ded6;--acc:#ff5a1f;--bad:#d93636;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121216;--card:#1c1c22;--ink:#f2f2f5;--mut:#9a9aa6;--line:#2c2c35;--bad:#ff6b6b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121216;--card:#1c1c22;--ink:#f2f2f5;--mut:#9a9aa6;--line:#2c2c35;--bad:#ff6b6b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{font-size:2rem;line-height:1.1;margin:.3rem 0}
+.mut{color:var(--mut)}
+main{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+.auth{max-width:380px;text-align:center;padding-top:6vh}
+.logo{font-size:3rem}
+.tabs{display:flex;gap:6px;background:var(--line);padding:4px;border-radius:12px;margin:20px 0 12px}
+.tabs button{flex:1;border:0;background:none;padding:10px;border-radius:9px;font:inherit;font-weight:600;color:var(--ink);cursor:pointer}
+.tabs .on{background:var(--card);box-shadow:0 1px 3px #0002}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;text-align:left;display:grid;gap:12px}
+label{display:grid;gap:4px;font-size:.85rem;font-weight:600;color:var(--mut)}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.btn{border:0;background:linear-gradient(135deg,var(--acc),#ff8a00);color:#fff;font:inherit;font-weight:700;padding:12px 16px;border-radius:12px;cursor:pointer}
+.btn.ghost{background:var(--line);color:var(--ink)}
+.err{color:var(--bad);font-size:.85rem;min-height:1.1em}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.row{display:flex;gap:8px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:16px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.stat b{display:block;font-size:1.6rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.car{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.car img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--line)}
+.car .b{padding:12px;display:grid;gap:6px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--line)}
+.price{font-size:1.25rem;font-weight:800;color:var(--acc)}
+.del{border:0;background:none;color:var(--mut);cursor:pointer;font:inherit;font-size:.8rem;padding:4px 0;text-align:left}
+.modal{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:20;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.sheet{background:var(--card);width:100%;max-width:520px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px;display:grid;gap:12px}
+@media(min-width:600px){.modal{align-items:center}.sheet{border-radius:20px}}
+.est{background:var(--bg);border:1px dashed var(--acc);border-radius:12px;padding:12px;text-align:center}
+.est b{font-size:1.5rem;color:var(--acc);display:block}
+.chk{display:flex;gap:8px;align-items:center;font-weight:400;color:var(--ink);font-size:.9rem}
+.chk input{width:auto}
+#prev{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;display:none}
+small{font-size:.75rem}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const mem={};
+const S={
+  get(k){try{return localStorage.getItem(k)}catch(e){return k in mem?mem[k]:null}},
+  set(k,v){try{localStorage.setItem(k,v);return true}catch(e){if(e&&e.name==='QuotaExceededError')return false;mem[k]=v;return true}},
+  del(k){try{localStorage.removeItem(k)}catch(e){delete mem[k]}}
+};
+const COND={
+  mint:['Kusursuz',1,'Kusursuz — kart ve blister yeni gibi'],
+  nm:['Çok iyi',.85,'Çok iyi — hafif köşe izi'],
+  ok:['Orta',.65,'Orta — kıvrık / ezik / çizik'],
+  worn:['Yıpranmış',.45,'Yıpranmış — yırtık, solmuş, ağır hasarlı'],
+  loose:['Kartonsuz',.35,'Kartonsuz — açılmış, sadece araba']
+};
+const DEF={
+  dent:['Ezik / çatlak blister',.9],
+  crease:['Kartta kırışıklık / katlanma',.9],
+  fade:['Renk solması / sararma',.92],
+  tag:['Fiyat etiketi / yapışkan izi',.95],
+  edge:['Yumuşamış veya kıvrık köşeler',.93]
+};
+const RAR={
+  normal:['Normal',1,'Normal seri'],
+  prem:['Premium',1.3,'Premium / Car Culture / RLC'],
+  th:['Treasure Hunt',1.8,'Treasure Hunt (T-Hunt)'],
+  sth:['Super Treasure Hunt',3.5,'Super Treasure Hunt']
+};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>n.toLocaleString('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0});
+const users=()=>{try{return JSON.parse(S.get('hw_users')||'{}')}catch(e){return{}}};
+const load=()=>{try{return JSON.parse(S.get('hw_col_'+user)||'[]')}catch(e){return[]}};
+const save=a=>S.set('hw_col_'+user,JSON.stringify(a));
+async function hash(p,salt){
+  const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+p));
+  return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+let user=S.get('hw_user'),mode='login',pendingImg=null;
+
+function render(){user?colView():authView()}
+
+function authView(){
+  const reg=mode==='register';
+  $('#app').innerHTML=`<main class="auth"><div class="logo">🏎️</div><h1>Hot Wheels<br>Koleksiyonum</h1>
+  <p class="mut">Arabalarını ekle, kartın durumuna göre tahmini değerini gör.</p>
+  <div class="tabs"><button data-m="login" class="${reg?'':'on'}">Giriş yap</button><button data-m="register" class="${reg?'on':''}">Kayıt ol</button></div>
+  <div class="panel"><label>Kullanıcı adı<input id="u" autocomplete="username"></label>
+  <label>Şifre<input id="p" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>
+  <div class="err" id="err"></div><button class="btn" id="go">${reg?'Hesap oluştur':'Giriş yap'}</button></div></main>`;
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;authView()});
+  $('#go').onclick=submit;
+  $('#p').onkeydown=e=>{if(e.key==='Enter')submit()};
+}
+
+async function submit(){
+  const err=t=>{$('#err').textContent=t};
+  const u=$('#u').value.trim().toLowerCase(),p=$('#p').value,all=users(),key='u_'+u;
+  if(u.length<3)return err('Kullanıcı adı en az 3 karakter olmalı.');
+  if(p.length<6)return err('Şifre en az 6 karakter olmalı.');
+  try{
+    if(mode==='register'){
+      if(all[key])return err('Bu kullanıcı adı alınmış.');
+      const salt=crypto.randomUUID();
+      all[key]={salt,h:await hash(p,salt)};
+      if(!S.set('hw_users',JSON.stringify(all)))return err('Kayıt saklanamadı.');
+    }else{
+      const x=all[key];
+      if(!x||x.h!==await hash(p,x.salt))return err('Kullanıcı adı veya şifre hatalı.');
+    }
+  }catch(e){return err('Bir hata oluştu, tekrar dene.')}
+  user=u;S.set('hw_user',u);render();
+}
+
+const card=x=>`<article class="car"><img src="${x.img}" alt="${esc(x.name)}"><div class="b">
+  <strong>${esc(x.name)}</strong>${x.series?`<span class="mut" style="font-size:.85rem">${esc(x.series)}</span>`:''}
+  <div class="chips"><span class="chip">Kart: ${COND[x.cond][0]}</span>${x.rarity!=='normal'?`<span class="chip">${RAR[x.rarity][0]}</span>`:''}</div>
+  <div class="price">${money(x.est)}</div><button class="del" data-id="${x.id}">Sil</button></div></article>`;
+
+function colView(){
+  const a=load(),tot=a.reduce((s,x)=>s+x.est,0);
+  $('#app').innerHTML=`<main><header><div><h1>Koleksiyonum</h1><span class="mut">@${esc(user)}</span></div>
+  <div class="row"><button class="btn" id="add">+ Araba ekle</button><button class="btn ghost" id="out">Çıkış</button></div></header>
+  <div class="stats"><div class="stat"><span class="mut">Araba</span><b>${a.length}</b></div>
+  <div class="stat"><span class="mut">Tahmini toplam değer</span><b>${money(tot)}</b></div></div>
+  ${a.length?`<div class="grid">${a.map(card).join('')}</div>`:`<p class="mut" style="text-align:center;padding:40px 0">Henüz araba yok. İlk Hot Wheels’ını ekle!</p>`}
+  <p class="mut" style="margin-top:28px"><small>Değerler yaklaşık tahmindir; gerçek fiyatlar piyasaya göre değişir. Hesabın ve koleksiyonun bu tarayıcıda saklanır.</small></p></main>`;
+  $('#add').onclick=openAdd;
+  $('#out').onclick=()=>{S.del('hw_user');user=null;render()};
+  document.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+    if(b.dataset.s){save(load().filter(x=>String(x.id)!==b.dataset.id));colView()}
+    else{b.dataset.s=1;b.textContent='Emin misin? Tekrar tıkla'}
+  });
+}
+
+function shrink(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>{const im=new Image();
+      im.onload=()=>{const s=Math.min(1,640/Math.max(im.width,im.height)),c=document.createElement('canvas');
+        c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.75))};
+      im.onerror=rej;im.src=r.result};
+    r.onerror=rej;r.readAsDataURL(file);
+  });
+}
+
+function openAdd(){
+  pendingImg=null;
+  const m=document.createElement('div');m.className='modal';
+  const q=s=>m.querySelector(s);
+  m.innerHTML=`<div class="sheet"><h2 style="margin:0">Yeni araba</h2>
+  <label>Fotoğraf<input type="file" id="f" accept="image/*"></label><img id="prev" alt="">
+  <label>Model adı<input id="n" placeholder="örn. ’71 Datsun 510"></label>
+  <label>Seri / yıl (isteğe bağlı)<input id="s" placeholder="örn. 2023 Nissan Skyline"></label>
+  <label>Kusursuz kartlı yaklaşık piyasa fiyatı (₺)<input id="b" type="number" min="0" inputmode="decimal"></label>
+  <label>Kart durumu<select id="c">${Object.entries(COND).map(([k,v])=>`<option value="${k}">${v[2]}</option>`).join('')}</select></label>
+  <label>Nadirlik<select id="r">${Object.entries(RAR).map(([k,v])=>`<option value="${k}">${v[2]}</option>`).join('')}</select></label>
+  <div style="display:grid;gap:6px"><span class="mut" style="font-size:.85rem;font-weight:600">Ek kusurlar</span>
+  ${Object.entries(DEF).map(([k,v])=>`<label class="chk"><input type="checkbox" value="${k}">${v[0]}</label>`).join('')}</div>
+  <div class="est">Tahmini değer<b id="e">₺0</b><small class="mut">baz fiyat × kart durumu × kusurlar × nadirlik</small></div>
+  <div class="err" id="err"></div>
+  <div class="row"><button class="btn ghost" id="x" style="flex:1">İptal</button><button class="btn" id="ok" style="flex:2">Koleksiyona ekle</button></div></div>`;
+  document.body.appendChild(m);
+  const calc=()=>{
+    let v=(+q('#b').value||0)*COND[q('#c').value][1]*RAR[q('#r').value][1];
+    m.querySelectorAll('.chk input:checked').forEach(i=>v*=DEF[i.value][1]);
+    return Math.round(v);
+  };
+  const upd=()=>{q('#e').textContent=money(calc())};
+  m.addEventListener('input',upd);m.addEventListener('change',upd);
+  q('#f').onchange=async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{pendingImg=await shrink(f);const p=q('#prev');p.src=pendingImg;p.style.display='block'}
+    catch(_){q('#err').textContent='Görsel okunamadı.'}
+  };
+  q('#x').onclick=()=>m.remove();
+  q('#ok').onclick=()=>{
+    const n=q('#n').value.trim(),b=+q('#b').value,er=q('#err');
+    if(!pendingImg)return er.textContent='Lütfen bir fotoğraf seç.';
+    if(!n)return er.textContent='Model adını yaz.';
+    if(!(b>0))return er.textContent='Baz fiyatı gir.';
+    const a=load();
+    a.unshift({id:Date.now(),name:n,series:q('#s').value.trim(),img:pendingImg,base:b,cond:q('#c').value,rarity:q('#r').value,est:calc()});
+    if(!save(a))return er.textContent='Depolama alanı doldu. Bazı arabaları silip tekrar dene.';
+    m.remove();colView();
+  };
+}
+render();
+</script>
+</body>
+</html>
